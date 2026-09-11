@@ -20,6 +20,7 @@ export default async function AdminDashboard() {
         <StatCard label="Tahmini kâr" value={formatMoney(s.estimatedProfit)} hint="Ürün satışı − tedarikçi maliyeti" tone="ok" />
         <StatCard label="Siparişler" value={s.orderCount} href="/admin/orders" />
         <StatCard label="Bekleyen siparişler" value={s.pendingOrders} tone={s.pendingOrders ? "warn" : undefined} href="/admin/orders?status=PAID" />
+        <StatCard label="Havale bekleyen" value={s.awaitingTransfer} hint="Para gelince siparişten onayla" tone={s.awaitingTransfer ? "warn" : undefined} href="/admin/orders?status=PENDING_PAYMENT" />
         <StatCard label="Aktif ürün" value={s.productCount} href="/admin/products" />
         <StatCard label="Tedarikçi" value={s.supplierCount} href="/admin/suppliers" />
         <StatCard label="Stok sorunu" value={s.outOfStock} hint="Stokta olmayan aktif ürün" tone={s.outOfStock ? "warn" : undefined} href="/admin/products?stock=out" />

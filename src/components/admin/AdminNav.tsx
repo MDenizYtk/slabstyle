@@ -15,6 +15,7 @@ const LINKS = [
   { href: "/admin/returns", label: "İadeler" },
   { href: "/admin/sync", label: "Senkronizasyon" },
   { href: "/admin/webhooks", label: "Webhooklar" },
+  { href: "/admin/settings", label: "Ayarlar" },
 ];
 
 export function AdminNav() {

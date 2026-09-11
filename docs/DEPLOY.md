@@ -94,8 +94,11 @@ Site `https://` ile açıldıktan sonra:
 ## 9. İlk giriş ve temizlik
 
 1. `https://slabstylecar.com/login` → `SEED_ADMIN_EMAIL` + `SEED_ADMIN_PASSWORD`.
-2. Admin → **Kategoriler** ve **Fiyat kuralları** kontrol et, **Yeni ürün** ile ürün ekle.
-3. Coolify'dan `SEED_ADMIN_PASSWORD` değişkenini sil (artık gerekmez; admin varken kullanılmaz).
+2. Admin → **Ayarlar**: Havale/EFT'yi aç (hesap sahibi, banka, IBAN) ve kargo ücretlerini gir.
+   Kartla ödeme gerçek sağlayıcı bağlanana kadar kapalıdır; müşteriler havale ile sipariş verir.
+   Para hesaba gelince: Siparişler → sipariş → **Havale geldi, onayla**.
+3. Admin → **Kategoriler** ve **Fiyat kuralları** kontrol et, **Yeni ürün** ile ürün ekle.
+4. Coolify'dan `SEED_ADMIN_PASSWORD` değişkenini sil (artık gerekmez; admin varken kullanılmaz).
 
 Canlı veritabanı boş başlar: MOCK tedarikçiler ve örnek ürünler **yoktur**.
 

@@ -15,6 +15,7 @@ import {
   reallocateAction,
   retrySubmitAction,
 } from "@/server/orders/admin-actions";
+import { confirmBankTransferAction } from "@/server/payments/admin-actions";
 
 export const metadata = { title: "Sipariş" };
 
@@ -177,6 +178,21 @@ export default async function AdminOrderPage(props: PageProps<"/admin/orders/[id
               <div key={p.id} className="border-b border-line py-2 last:border-0">
                 <div className="flex justify-between"><span>{p.provider} · {formatMoney(p.amount)}</span><StatusBadge status={p.status} label={PAYMENT_STATUS_LABEL[p.status]} /></div>
                 {p.failureReason && <p className="text-xs text-bad">{p.failureReason}</p>}
+                {p.provider === "bank_transfer" && p.status === "PENDING" && order.status === "PENDING_PAYMENT" && (
+                  <div className="mt-2 space-y-2 rounded-md bg-warn/10 p-3 text-xs">
+                    <p>Hesabına <strong>{formatMoney(p.amount)}</strong> ve açıklamada <strong>SS-{order.number}</strong> ile havale geldiğini kontrol et.</p>
+                    {user.role === "ADMIN" && (
+                      <form action={confirmBankTransferAction}>
+                        <input type="hidden" name="paymentId" value={p.id} />
+                        <button className="btn-primary w-full text-xs">Havale geldi, onayla</button>
+                      </form>
+                    )}
+                    <p className="text-muted">Para gelmediyse aşağıdan siparişi iptal et; ayrılan stok satışa geri açılır.</p>
+                  </div>
+                )}
+                {p.provider === "bank_transfer" && p.refunds.length > 0 && (
+                  <p className="mt-1 text-xs text-warn">Havale iadesi: tutarı müşteriye bankadan elle gönder.</p>
+                )}
                 {p.refunds.map((r) => <p key={r.id} className="text-xs text-muted">İade {formatMoney(r.amount)} · {r.status} · {r.reason}</p>)}
               </div>
             ))}

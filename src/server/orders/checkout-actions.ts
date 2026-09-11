@@ -8,13 +8,16 @@ import { rateLimit } from "../rate-limit";
 import { getActiveCartId } from "../cart/service";
 import { randomToken } from "../security/crypto";
 import { addressInputSchema, CheckoutError, placeOrder, type AddressInput } from "./checkout";
-import { PaymentError, processPaymentWebhook, startPayment } from "../payments/service";
+import { getAvailablePaymentMethods, PaymentError, processPaymentWebhook, startPayment } from "../payments/service";
 import { buildMockWebhook } from "../payments/providers/mock";
 
 export type CheckoutState = { error?: string; fieldErrors?: Record<string, string[] | undefined> };
 
+const paymentMethod = z.enum(["card", "bank_transfer"]);
+
 const formSchema = z.object({
   shippingMethod: z.enum(["standard", "express"]),
+  paymentMethod,
   idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
   terms: z.literal("on", { message: "Sözleşmeleri onaylamanız gerekiyor" }),
   note: z.string().trim().max(500).optional(),
@@ -27,11 +30,15 @@ export async function placeOrderAction(_prev: CheckoutState, formData: FormData)
 
   const parsed = formSchema.safeParse({
     shippingMethod: formData.get("shippingMethod"),
+    paymentMethod: formData.get("paymentMethod"),
     idempotencyKey: formData.get("idempotencyKey"),
     terms: formData.get("terms"),
     note: formData.get("note") || undefined,
   });
-  if (!parsed.success) return { fieldErrors: parsed.error.flatten().fieldErrors, error: "Formu kontrol edin" };
+  if (!parsed.success) return { fieldErrors: parsed.error.flatten().fieldErrors, error: "Formu kontrol edin (ödeme yöntemi ve sözleşme onayı gerekli)" };
+
+  const available = await getAvailablePaymentMethods(db);
+  if (!available.some((m) => m.id === parsed.data.paymentMethod)) return { error: "Seçilen ödeme yöntemi şu anda kullanılamıyor" };
 
   const addressId = String(formData.get("addressId") ?? "new");
   let address: AddressInput;
@@ -74,7 +81,7 @@ export async function placeOrderAction(_prev: CheckoutState, formData: FormData)
       note: parsed.data.note,
     });
     try {
-      target = await startPayment(db, orderId, user.id);
+      target = await startPayment(db, orderId, user.id, parsed.data.paymentMethod);
     } catch (error) {
       // Sipariş oluştu ama ödeme başlatılamadı: sonuç sayfasından tekrar denenebilir.
       if (!(error instanceof PaymentError)) console.error(error);
@@ -90,9 +97,10 @@ export async function placeOrderAction(_prev: CheckoutState, formData: FormData)
 export async function retryPaymentAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const orderId = z.string().min(1).max(40).parse(formData.get("orderId"));
+  const method = paymentMethod.catch("card").parse(formData.get("paymentMethod"));
   let target = `/checkout/success/${orderId}?failed=1`;
   try {
-    target = await startPayment(db, orderId, user.id);
+    target = await startPayment(db, orderId, user.id, method);
   } catch (error) {
     if (!(error instanceof PaymentError)) throw error;
   }

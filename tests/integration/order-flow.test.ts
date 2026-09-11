@@ -10,7 +10,7 @@ import { hashPassword } from "@/server/auth/password";
 import { recalculateVariants } from "@/server/catalog/recalculate";
 import { placeOrder, type PlaceOrderInput } from "@/server/orders/checkout";
 import { applyTracking, pollSupplierOrder } from "@/server/orders/dispatch";
-import { expireUnpaidOrders, processPaymentWebhook, startPayment } from "@/server/payments/service";
+import { capturePayment, expireUnpaidOrders, getAvailablePaymentMethods, processPaymentWebhook, startPayment } from "@/server/payments/service";
 import { buildMockWebhook } from "@/server/payments/providers/mock";
 import { createRefund, RefundError } from "@/server/payments/refund";
 import { SIGNATURE_HEADER } from "@/server/payments/signature";
@@ -197,6 +197,32 @@ describe("ödeme sorunları", () => {
     expect(await expireUnpaidOrders(db, 30)).toBe(2);
     expect((await db.order.findUniqueOrThrow({ where: { id: orderId } })).status).toBe("CANCELLED");
     expect(await inventory()).toEqual({ availableQty: before.availableQty + 1, reservedQty: 0 });
+  });
+
+  it("havale: süresi dolmadan iptal edilmez, admin onayıyla tek sefer PAID olur ve tedarikçiye gider", async () => {
+    await db.setting.upsert({
+      where: { key: "bankTransfer" },
+      create: { key: "bankTransfer", value: { enabled: true, accountHolder: "Test Ltd", bankName: "Test Bank", iban: "TR330006100519786457841326", note: "", expireHours: 48 } },
+      update: { value: { enabled: true, accountHolder: "Test Ltd", bankName: "Test Bank", iban: "TR330006100519786457841326", note: "", expireHours: 48 } },
+    });
+    expect((await getAvailablePaymentMethods(db)).map((m) => m.id)).toContain("bank_transfer");
+
+    const cartId = await newCart(1);
+    const { orderId } = await placeOrder(db, orderInput(cartId, "key-order-bank-aaaaaaaa"));
+    expect(await startPayment(db, orderId, userId, "bank_transfer")).toMatch(/^\/checkout\/transfer\//);
+
+    // Kart siparişi 30 dk'da iptal olurdu; havale 48 saat bekler.
+    await db.order.update({ where: { id: orderId }, data: { createdAt: new Date(Date.now() - 3_600_000) } });
+    await expireUnpaidOrders(db, 30);
+    expect((await db.order.findUniqueOrThrow({ where: { id: orderId } })).status).toBe("PENDING_PAYMENT");
+
+    const payment = await db.payment.findFirstOrThrow({ where: { orderId, provider: "bank_transfer" } });
+    expect(await capturePayment(db, payment.id, { type: "USER" })).toBe("PAID");
+    expect(await capturePayment(db, payment.id, { type: "USER" })).toBe("ALREADY_CAPTURED");
+
+    const order = await db.order.findUniqueOrThrow({ where: { id: orderId }, include: { supplierOrders: true } });
+    expect(order.status).toBe("PROCESSING");
+    expect(order.supplierOrders).toHaveLength(1);
   });
 
   it("stok yetersizse sipariş oluşmaz ve hiçbir rezervasyon kalmaz", async () => {

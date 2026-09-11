@@ -7,6 +7,9 @@ import { formatMoney } from "@/lib/money";
 import { requireUser } from "@/server/auth/dal";
 import { getUserOrder } from "@/server/orders/customer-queries";
 import { ReturnRequestForm } from "@/components/store/ReturnRequestForm";
+import { BankTransferInfo } from "@/components/store/BankTransferInfo";
+import { db } from "@/server/db";
+import { getBankTransferSettings } from "@/server/settings";
 
 export const metadata: Metadata = { title: "Sipariş detayı", robots: { index: false } };
 
@@ -18,6 +21,11 @@ export default async function OrderDetailPage(props: PageProps<"/account/orders/
   const order = await getUserOrder(user.id, id);
   if (!order) notFound();
 
+  const lastPayment = order.payments[0];
+  const bank =
+    order.status === "PENDING_PAYMENT" && lastPayment?.provider === "bank_transfer" && lastPayment.status === "PENDING"
+      ? await getBankTransferSettings(db)
+      : null;
   const address = (order.shippingAddress ?? {}) as Address;
   const packages = order.supplierOrders.filter((so) => so.items.length > 0);
   const returnableItems = ["DELIVERED", "SHIPPED", "PARTIALLY_SHIPPED"].includes(order.status)
@@ -34,9 +42,12 @@ export default async function OrderDetailPage(props: PageProps<"/account/orders/
 
       <div className="grid gap-8 lg:grid-cols-[1.5fr_1fr]">
         <div className="space-y-4">
-          {order.status === "PENDING_PAYMENT" && (
-            <div className="card border-warn/40 p-4 text-sm text-warn">Ödemen henüz onaylanmadı. Onaylandığında siparişin hazırlanmaya başlar.</div>
-          )}
+          {order.status === "PENDING_PAYMENT" &&
+            (bank && lastPayment ? (
+              <BankTransferInfo settings={bank} amount={lastPayment.amount} orderNumber={order.number} createdAt={lastPayment.createdAt} />
+            ) : (
+              <div className="card border-warn/40 p-4 text-sm text-warn">Ödemen henüz onaylanmadı. Onaylandığında siparişin hazırlanmaya başlar.</div>
+            ))}
 
           {packages.map((pkg, i) => (
             <section key={pkg.id} className="card p-5" aria-label={`Paket ${i + 1}`}>

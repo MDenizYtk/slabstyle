@@ -7,6 +7,7 @@ import { placeOrderAction, type CheckoutState } from "@/server/orders/checkout-a
 
 type SavedAddress = { id: string; title: string; fullName: string; phone: string; line1: string; line2: string | null; district: string; city: string };
 type Method = { id: "standard" | "express"; label: string; etaDays: string; shipping: number; grandTotal: number };
+type PaymentOption = { id: "card" | "bank_transfer"; label: string; description: string };
 
 function Err({ list }: { list?: string[] }) {
   return list?.length ? <p className="field-error">{list[0]}</p> : null;
@@ -22,16 +23,19 @@ export function CheckoutForm({
   subtotal,
   itemCount,
   idempotencyKey,
+  paymentMethods,
 }: {
   addresses: SavedAddress[];
   methods: Method[];
   subtotal: number;
   itemCount: number;
   idempotencyKey: string;
+  paymentMethods: PaymentOption[];
 }) {
   const [state, action, pending] = useActionState<CheckoutState, FormData>(placeOrderAction, {});
   const [addressId, setAddressId] = useState(addresses[0]?.id ?? "new");
   const [methodId, setMethodId] = useState<Method["id"]>(methods[0]?.id ?? "standard");
+  const [paymentId, setPaymentId] = useState<PaymentOption["id"] | undefined>(paymentMethods[0]?.id);
   const method = methods.find((m) => m.id === methodId) ?? methods[0];
   const fe = state.fieldErrors ?? {};
 
@@ -91,6 +95,25 @@ export function CheckoutForm({
           <label className="label mt-4" htmlFor="note">Sipariş notu (isteğe bağlı)</label>
           <textarea id="note" name="note" rows={2} maxLength={500} className="input" />
         </section>
+
+        <section className="card p-6" aria-labelledby="step-payment">
+          <h2 id="step-payment" className="slab mb-4 text-xl"><span className="text-accent">4.</span> Ödeme yöntemi</h2>
+          {paymentMethods.length === 0 ? (
+            <p className="rounded-md border border-warn/40 bg-warn/10 p-3 text-sm text-warn">
+              Şu anda online ödeme alınamıyor. Lütfen daha sonra tekrar deneyin.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {paymentMethods.map((m) => (
+                <label key={m.id} className={cn("flex cursor-pointer gap-3 rounded-lg border p-3 text-sm", paymentId === m.id ? "border-accent bg-accent/5" : "border-line")}>
+                  <input type="radio" name="paymentMethod" value={m.id} checked={paymentId === m.id} onChange={() => setPaymentId(m.id)} className="mt-1 accent-accent" />
+                  <span><span className="font-semibold">{m.label}</span><br /><span className="text-muted">{m.description}</span></span>
+                </label>
+              ))}
+            </div>
+          )}
+          <Err list={fe.paymentMethod} />
+        </section>
       </div>
 
       <aside className="card h-fit space-y-4 p-6 lg:sticky lg:top-40">
@@ -107,9 +130,8 @@ export function CheckoutForm({
         </label>
         <Err list={fe.terms} />
         {state.error && <p role="alert" className="rounded-md border border-bad/40 bg-bad/10 p-3 text-sm text-bad">{state.error}</p>}
-        <button disabled={pending} className="btn-primary w-full text-base">
-          <span className="text-accent-hover" aria-hidden="true" />
-          {pending ? "Sipariş oluşturuluyor…" : "4. Ödemeye geç"}
+        <button disabled={pending || paymentMethods.length === 0} className="btn-primary w-full text-base">
+          {pending ? "Sipariş oluşturuluyor…" : paymentId === "bank_transfer" ? "Siparişi tamamla" : "Ödemeye geç"}
         </button>
         <p className="text-center text-xs text-subtle">Fiyat ve stok bu adımda sunucuda yeniden doğrulanır.</p>
       </aside>

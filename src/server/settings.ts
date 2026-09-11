@@ -24,7 +24,29 @@ const shippingSettingsSchema = z.object({
   methods: z.object({ standard: methodSchema, express: methodSchema }),
 });
 
-export const SETTING_KEYS = { pricing: "pricing", shipping: "shipping" } as const;
+export const SETTING_KEYS = { pricing: "pricing", shipping: "shipping", bankTransfer: "bankTransfer" } as const;
+
+/** Havale / EFT ile ödeme bilgileri (admin → Ayarlar). */
+export const bankTransferSchema = z.object({
+  enabled: z.boolean(),
+  accountHolder: z.string().max(120),
+  bankName: z.string().max(80),
+  iban: z.string().max(40),
+  note: z.string().max(500),
+  /** Ödeme yapılmayan havale siparişleri bu süre sonunda iptal edilir. */
+  expireHours: z.number().int().min(1).max(168),
+});
+
+export type BankTransferSettings = z.infer<typeof bankTransferSchema>;
+
+export const DEFAULT_BANK_TRANSFER: BankTransferSettings = {
+  enabled: false,
+  accountHolder: "",
+  bankName: "",
+  iban: "",
+  note: "",
+  expireHours: 48,
+};
 
 async function readSetting<T>(db: DbClient, key: string, schema: z.ZodType<T>, fallback: T): Promise<T> {
   const row = await db.setting.findUnique({ where: { key } });
@@ -39,6 +61,10 @@ export function getPricingSettings(db: DbClient): Promise<PricingSettings> {
 
 export function getShippingSettings(db: DbClient): Promise<ShippingSettings> {
   return readSetting(db, SETTING_KEYS.shipping, shippingSettingsSchema, DEFAULT_SHIPPING_SETTINGS);
+}
+
+export function getBankTransferSettings(db: DbClient): Promise<BankTransferSettings> {
+  return readSetting(db, SETTING_KEYS.bankTransfer, bankTransferSchema, DEFAULT_BANK_TRANSFER);
 }
 
 export { pricingSettingsSchema, shippingSettingsSchema };

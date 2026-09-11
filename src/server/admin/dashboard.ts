@@ -20,6 +20,7 @@ export async function getDashboardStats() {
     openReturns,
     recentOrders,
     recentSyncs,
+    awaitingTransfer,
   ] = await Promise.all([
     db.order.aggregate({ where: paid, _sum: { grandTotal: true, subtotal: true, costTotal: true } }),
     db.order.count(),
@@ -42,6 +43,7 @@ export async function getDashboardStats() {
       take: 8,
       select: { id: true, type: true, status: true, queuedAt: true, errorMessage: true, supplier: { select: { name: true } } },
     }),
+    db.order.count({ where: { status: "PENDING_PAYMENT", payments: { some: { provider: "bank_transfer", status: "PENDING" } } } }),
   ]);
 
   const revenue = sales._sum.grandTotal ?? 0;
@@ -63,5 +65,6 @@ export async function getDashboardStats() {
     openReturns,
     recentOrders,
     recentSyncs,
+    awaitingTransfer,
   };
 }

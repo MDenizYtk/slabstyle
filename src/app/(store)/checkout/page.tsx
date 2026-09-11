@@ -7,6 +7,7 @@ import { getCartView, loadCartView } from "@/server/cart/service";
 import { db } from "@/server/db";
 import { randomToken } from "@/server/security/crypto";
 import { getShippingSettings } from "@/server/settings";
+import { getAvailablePaymentMethods } from "@/server/payments/service";
 
 export const metadata: Metadata = { title: "Ödeme", robots: { index: false } };
 
@@ -15,10 +16,11 @@ export default async function CheckoutPage() {
   const cart = await getCartView("standard");
   if (cart.lines.length === 0 || !cart.cartId) redirect("/cart");
 
-  const [express, addresses, shipping] = await Promise.all([
+  const [express, addresses, shipping, paymentMethods] = await Promise.all([
     loadCartView(cart.cartId, "express"),
     db.address.findMany({ where: { userId: user.id }, orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }] }),
     getShippingSettings(db),
+    getAvailablePaymentMethods(db),
   ]);
 
   const methods = [
@@ -41,6 +43,7 @@ export default async function CheckoutPage() {
         subtotal={cart.totals.subtotal}
         itemCount={cart.totals.itemCount}
         idempotencyKey={randomToken(24)}
+        paymentMethods={paymentMethods}
       />
     </div>
   );

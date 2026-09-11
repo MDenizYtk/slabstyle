@@ -40,7 +40,7 @@ export async function getUserOrder(userId: string, orderId: string) {
       grandTotal: true,
       createdAt: true,
       paidAt: true,
-      payments: { select: { status: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      payments: { select: { status: true, provider: true, amount: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
       items: {
         where: { supplierOrderId: null },
         select: { id: true, productName: true, variantName: true, quantity: true, unitPrice: true, lineTotal: true },
