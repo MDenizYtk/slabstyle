@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/src/generated
+!.env.example
+
+# yüklenen ürün fotoğrafları
+/storage

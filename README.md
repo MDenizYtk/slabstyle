@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SLAB STYLE Car Care
 
-## Getting Started
+Birden fazla B2B tedarikçinin ürünlerini tek mağazada satan e-ticaret platformu.
+Müşteri tek bir mağaza görür; sipariş arka planda ilgili tedarikçilere bölünür ve iletilir.
+Tedarikçi adı ve alış fiyatı müşteriye hiçbir yerde gösterilmez.
 
-First, run the development server:
+## Teknoloji
+
+Next.js 16 (App Router, Server Actions) · TypeScript · Tailwind CSS 4 · PostgreSQL 17 · Prisma 7 ·
+Redis + BullMQ · Playwright (API'si olmayan B2B bayi panelleri) · Vitest
+
+## Hızlı başlangıç (yerel)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+./scripts/dev-services.sh        # PostgreSQL + Redis
+cp .env.example .env              # değerleri doldurun (ENCRYPTION_KEY: openssl rand -base64 32)
+npm install
+npx playwright install chromium   # B2B panel adapter'ı için
+npm run db:migrate                # şema
+npm run db:seed                   # MOCK örnek veri + admin kullanıcı
+npm run dev                       # http://localhost:4920
+npm run worker                    # ayrı terminalde: senkronizasyon ve sipariş işleri
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Worker çalıştırmadan denemek için `.env` içinde `QUEUE_INLINE=1` kullanılabilir (yalnızca yerel).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Komutlar
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Komut | Açıklama |
+| --- | --- |
+| `npm run dev` | Geliştirme sunucusu (port 4920) |
+| `npm run worker` | BullMQ worker: sync, sipariş iletimi, zamanlayıcı |
+| `npm run typecheck` | TypeScript kontrolü |
+| `npm run lint` | ESLint |
+| `npm test` | Birim testleri |
+| `npm run test:integration` | Gerçek test veritabanında uçtan uca sipariş akışı |
+| `npm run build` | Production build |
+| `npm run check` | typecheck + lint + test + build |
+| `npm run db:migrate` / `db:deploy` / `db:seed` | Veritabanı |
 
-## Learn More
+## Önemli klasörler
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/domain/        Saf iş kuralları (fiyat, stok, tedarikçi seçimi, eşleştirme, sipariş durumu, iade)
+src/server/        Sunucu katmanı (auth, katalog, sepet, checkout, ödeme, sipariş, sync, tedarikçiler)
+src/server/suppliers/adapters/   mock, manual, generic-feed, generic-rest, b2b-portal
+src/app/(store)/   Mağaza sayfaları
+src/app/admin/     Admin paneli
+scripts/worker.ts  Arka plan worker'ı
+prisma/            Şema, migration'lar, seed
+docs/              Mimari, yol haritası, tedarikçi entegrasyon rehberi
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Dokümanlar
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [Mimari](docs/ARCHITECTURE.md)
+- [Yol haritası ve durum](docs/ROADMAP.md)
+- [Tedarikçi entegrasyonu (B2B panel, feed, API)](docs/SUPPLIER_INTEGRATION.md)
+- [Canlıya alma: Hetzner + Coolify + Cloudflare](docs/DEPLOY.md)
 
-## Deploy on Vercel
+## Üretime alma
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`docker compose --env-file .env.production up -d --build` — web, worker, migration, PostgreSQL ve Redis.
+Önünde TLS sonlandıran bir ters vekil (Caddy/Nginx/Coolify) olmalıdır. Kontrol listesi için
+[docs/ROADMAP.md](docs/ROADMAP.md) içindeki "Canlıya almadan önce" bölümüne bakın.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## MOCK veriler
+
+`MOCK Tedarikçi A/B/C`, markalar, barkodlar ve fiyatlar uydurmadır; yalnızca geliştirme içindir.
+MOCK ödeme sağlayıcısı gerçek para çekmez ve üretimde `ALLOW_MOCK_PAYMENTS=1` olmadan çalışmaz.

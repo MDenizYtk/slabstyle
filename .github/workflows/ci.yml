@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: slabstyle_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/slabstyle_test?schema=public
+      TEST_DATABASE_URL: postgresql://ci:ci@localhost:5432/slabstyle_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+      PAYMENT_WEBHOOK_SECRET: ci-secret
+      APP_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx prisma generate
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Birim testleri
+        run: npm test
+      - name: Entegrasyon testleri
+        run: npm run test:integration
+      - name: Build
+        run: npm run build

@@ -1,0 +1,100 @@
+# Coolify (Hetzner) kurulumu — "Docker Compose" build pack ile bu dosya seçilir.
+#
+# - SERVICE_PASSWORD_POSTGRES Coolify tarafından otomatik üretilir.
+# - Diğer ${...} değişkenleri Coolify → Environment Variables ekranından girilir
+#   (liste ve açıklamalar: docs/DEPLOY.md).
+# - Alan adı Coolify'da "web" servisine atanır (port 3000); host portu açılmaz,
+#   trafik Coolify'ın Traefik proxy'si üzerinden gelir.
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: slabstyle
+      POSTGRES_USER: slabstyle
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+    volumes:
+      - slabstyle-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slabstyle -d slabstyle"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - slabstyle-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    restart: "no"
+    exclude_from_hc: true
+    environment:
+      DATABASE_URL: postgresql://slabstyle:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/slabstyle?schema=public
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://slabstyle:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/slabstyle?schema=public
+      REDIS_URL: redis://redis:6379
+      APP_URL: ${APP_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET}
+      ALLOW_MOCK_PAYMENTS: ${ALLOW_MOCK_PAYMENTS:-0}
+      TRUST_CLOUDFLARE: ${TRUST_CLOUDFLARE:-1}
+      QUEUE_INLINE: "0"
+    volumes:
+      - slabstyle-storage:/app/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://slabstyle:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/slabstyle?schema=public
+      REDIS_URL: redis://redis:6379
+      APP_URL: ${APP_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET}
+      ALLOW_MOCK_PAYMENTS: ${ALLOW_MOCK_PAYMENTS:-0}
+    volumes:
+      - slabstyle-storage:/app/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+volumes:
+  slabstyle-pgdata:
+  slabstyle-redis:
+  slabstyle-storage:

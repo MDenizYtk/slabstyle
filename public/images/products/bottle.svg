@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1d1d23"/><stop offset="1" stop-color="#0c0c0e"/></linearGradient>
+<linearGradient id="gl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+<rect width="600" height="600" fill="url(#bg)"/>
+<circle cx="470" cy="110" r="220" fill="#ff5a1f" opacity=".12"/>
+<ellipse cx="300" cy="520" rx="170" ry="18" fill="#000" opacity=".5"/>
+<rect x="255" y="95" width="90" height="50" rx="8" fill="#2a2a31"/><rect x="200" y="140" width="200" height="380" rx="36" fill="#f4f4f5"/><rect x="200" y="250" width="200" height="150" fill="#ff5a1f"/><text x="300" y="335" text-anchor="middle" font-family="Arial Black,Arial" font-size="40" fill="#0a0a0b">SLAB</text><rect x="225" y="150" width="30" height="360" rx="15" fill="url(#gl)"/>
+<text x="300" y="575" text-anchor="middle" font-family="Arial Black,Arial" font-size="18" letter-spacing="6" fill="#71717a">SLAB STYLE</text>
+</svg>

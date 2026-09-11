@@ -1,0 +1,833 @@
+// SLAB STYLE Car Care — çok tedarikçili e-ticaret platformu veritabanı şeması.
+//
+// Temel kurallar:
+// - Tüm para değerleri kuruş cinsinden tam sayıdır (Int). 1250,90 TL = 125090.
+// - Müşteri tarafındaki ürün kimliği (Product / ProductVariant) ile tedarikçinin
+//   kendi kaydı (SupplierProduct) birbirinden ayrıdır.
+// - Tedarikçi adı, alış fiyatı ve tedarikçi SKU'su müşteriye asla gösterilmez.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────── Kullanıcı ──
+
+enum Role {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  name            String
+  phone           String?
+  role            Role      @default(CUSTOMER)
+  emailVerifiedAt DateTime?
+  disabledAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sessions  Session[]
+  addresses Address[]
+  carts     Cart[]
+  orders    Order[]
+  returns   Return[]
+  auditLogs AuditLog[]
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  // Cookie'deki ham token asla saklanmaz; yalnızca SHA-256 hash'i tutulur.
+  tokenHash  String   @unique
+  userId     String
+  expiresAt  DateTime
+  lastUsedAt DateTime @default(now())
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  fullName   String
+  phone      String
+  line1      String
+  line2      String?
+  district   String
+  city       String
+  postalCode String?
+  country    String   @default("TR")
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ────────────────────────────────────────────────────────── Tedarikçi ──
+
+enum SupplierStatus {
+  ACTIVE
+  PAUSED
+  DISABLED
+}
+
+enum IntegrationType {
+  REST_API
+  XML_FEED
+  CSV_FEED
+  JSON_FEED
+  MANUAL_IMPORT
+  CUSTOM
+  MOCK
+}
+
+model Supplier {
+  id                     String          @id @default(cuid())
+  code                   String          @unique
+  name                   String
+  status                 SupplierStatus  @default(PAUSED)
+  integrationType        IntegrationType
+  // Adapter kayıt defterindeki anahtar (ör. "mock", "generic-csv", "acme-rest").
+  adapterKey             String
+  // Gizli olmayan ayarlar: feed URL'leri, alan eşlemeleri, sayfalama vb.
+  config                 Json            @default("{}")
+  // API anahtarı / şifre gibi gizli bilgiler AES-256-GCM ile şifrelenir.
+  credentialsEncrypted   String?
+  // Büyük sayı = daha öncelikli.
+  priority               Int             @default(0)
+  defaultLeadTimeDays    Int             @default(2)
+  safetyStock            Int             @default(0)
+  stockSyncIntervalMin   Int             @default(15)
+  catalogSyncIntervalMin Int             @default(240)
+  autoSubmitOrders       Boolean         @default(false)
+  notes                  String?
+  lastStockSyncAt        DateTime?
+  lastCatalogSyncAt      DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  products       SupplierProduct[]
+  supplierOrders SupplierOrder[]
+  syncJobs       SyncJob[]
+  pricingRules   PricingRule[]
+}
+
+enum SupplierProductStatus {
+  ACTIVE
+  UNAVAILABLE
+  REMOVED
+}
+
+enum MatchStatus {
+  UNMATCHED
+  PENDING_REVIEW
+  AUTO_MATCHED
+  MANUAL_MATCHED
+  REJECTED
+}
+
+enum MatchMethod {
+  GTIN
+  MPN
+  SUPPLIER_SKU
+  BRAND_MODEL
+  MANUAL
+}
+
+model SupplierProduct {
+  id               String                @id @default(cuid())
+  supplierId       String
+  supplierSku      String
+  // Eşleşene kadar null: tedarikçi ürünü müşteriye açık bir varyanta bağlı değildir.
+  variantId        String?
+  gtin             String?
+  mpn              String?
+  brandName        String?
+  title            String
+  description      String?
+  categoryPath     String?
+  imageUrls        String[]              @default([])
+  attributes       Json                  @default("{}")
+  rawData          Json?
+  // Alış fiyatı (kuruş). Müşteriye asla gösterilmez.
+  costPrice        Int
+  currency         String                @default("TRY")
+  stock            Int                   @default(0)
+  leadTimeDays     Int?
+  status           SupplierProductStatus @default(ACTIVE)
+  matchStatus      MatchStatus           @default(UNMATCHED)
+  matchMethod      MatchMethod?
+  matchConfidence  Float?
+  // Değişiklik tespiti için normalize edilmiş verinin hash'i.
+  contentHash      String?
+  lastSeenAt       DateTime              @default(now())
+  lastStockSyncAt  DateTime?
+  lastPriceSyncAt  DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  supplier        Supplier                @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  variant         ProductVariant?         @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  matchCandidates ProductMatchCandidate[]
+  orderItems      OrderItem[]
+  prices          Price[]
+
+  @@unique([supplierId, supplierSku])
+  @@index([variantId])
+  @@index([gtin])
+  @@index([mpn])
+  @@index([matchStatus])
+  @@index([supplierId, status])
+}
+
+enum MatchCandidateStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+// Otomatik eşleştirme emin olamadığında admin onayına düşen öneriler.
+model ProductMatchCandidate {
+  id                String               @id @default(cuid())
+  supplierProductId String
+  variantId         String
+  method            MatchMethod
+  score             Float
+  status            MatchCandidateStatus @default(PENDING)
+  reviewedById      String?
+  reviewedAt        DateTime?
+  createdAt         DateTime             @default(now())
+
+  supplierProduct SupplierProduct @relation(fields: [supplierProductId], references: [id], onDelete: Cascade)
+  variant         ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierProductId, variantId])
+  @@index([status])
+}
+
+// ───────────────────────────────────────────────────────────── Katalog ──
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  imageUrl    String?
+  parentId    String?
+  position    Int      @default(0)
+  isVisible   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent       Category?     @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Category[]    @relation("CategoryTree")
+  products     Product[]
+  pricingRules PricingRule[]
+
+  @@index([parentId])
+}
+
+model Brand {
+  id           String        @id @default(cuid())
+  slug         String        @unique
+  name         String
+  logoUrl      String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  products     Product[]
+  pricingRules PricingRule[]
+}
+
+model Product {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  name           String
+  shortDesc      String?
+  description    String?
+  // Teknik özellikler: [{ "label": "Hacim", "value": "500 ml" }]
+  specs          Json          @default("[]")
+  brandId        String?
+  categoryId     String?
+  status         ProductStatus @default(DRAFT)
+  isFeatured     Boolean       @default(false)
+  // Listeleme/sıralama performansı için denormalize alanlar (fiyat/stok yeniden
+  // hesaplandığında güncellenir).
+  minPrice       Int?
+  totalAvailable Int           @default(0)
+  // Arama: ad + marka + kategori + SKU/barkod birleşimi (küçük harf, aksansız).
+  // recalculate.refreshProductAggregates tarafından doldurulur.
+  searchText     String        @default("")
+  searchVector   Unsupported("tsvector")?
+  seoTitle       String?
+  seoDescription String?
+  publishedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  brand    Brand?           @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  category Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  variants ProductVariant[]
+  images   ProductImage[]
+
+  @@index([status, categoryId])
+  @@index([status, brandId])
+  @@index([status, publishedAt])
+  @@index([isFeatured])
+  @@index([status, minPrice])
+  @@index([searchVector], type: Gin)
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "Product_searchText_trgm_idx")
+}
+
+model ProductVariant {
+  id          String   @id @default(cuid())
+  productId   String
+  // Bizim iç SKU'muz; tedarikçi SKU'sundan bağımsızdır.
+  sku         String   @unique
+  gtin        String?  @unique
+  mpn         String?
+  name        String
+  // Seçenekler: { "Hacim": "500 ml" }
+  options     Json     @default("{}")
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  weightGrams Int?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product          Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplierProducts SupplierProduct[]
+  inventory        Inventory?
+  price            Price?
+  images           ProductImage[]
+  cartItems        CartItem[]
+  orderItems       OrderItem[]
+  matchCandidates  ProductMatchCandidate[]
+
+  @@index([productId])
+  @@index([mpn])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  variantId String?
+  url       String
+  alt       String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([productId, position])
+}
+
+// Satılabilir stok: tedarikçi stoklarından safety stock düşülerek hesaplanır.
+model Inventory {
+  id           String   @id @default(cuid())
+  variantId    String   @unique
+  availableQty Int      @default(0)
+  reservedQty  Int      @default(0)
+  // Hesaplamada kullanılan ham tedarikçi stoklarının toplamı (yalnızca admin).
+  supplierQty  Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([availableQty])
+}
+
+enum RoundingStrategy {
+  NONE
+  WHOLE
+  END_90
+  END_99
+}
+
+// Varyantın müşteriye gösterilen güncel satış fiyatı.
+model Price {
+  id                String   @id @default(cuid())
+  variantId         String   @unique
+  amount            Int
+  compareAtAmount   Int?
+  // Admin'in elle girdiği fiyat varsa kurallar yerine bu kullanılır.
+  manualAmount      Int?
+  currency          String   @default("TRY")
+  // Fiyatın dayandığı tedarikçi teklifi ve maliyet (yalnızca admin).
+  supplierProductId String?
+  costAmount        Int?
+  pricingRuleId     String?
+  calculatedAt      DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  variant         ProductVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  supplierProduct SupplierProduct? @relation(fields: [supplierProductId], references: [id], onDelete: SetNull)
+  pricingRule     PricingRule?     @relation(fields: [pricingRuleId], references: [id], onDelete: SetNull)
+
+  @@index([amount])
+}
+
+enum PricingRuleScope {
+  GLOBAL
+  SUPPLIER
+  CATEGORY
+  BRAND
+}
+
+model PricingRule {
+  id          String           @id @default(cuid())
+  name        String
+  scope       PricingRuleScope @default(GLOBAL)
+  supplierId  String?
+  categoryId  String?
+  brandId     String?
+  // Maliyet aralığı (kuruş). Alt sınır dahil, üst sınır hariç.
+  minCost     Int?
+  maxCost     Int?
+  // Marj baz puan cinsinden: 2500 = %25.
+  marginBps   Int
+  fixedMarkup Int              @default(0)
+  priority    Int              @default(0)
+  rounding    RoundingStrategy @default(END_90)
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  brand    Brand?    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  prices   Price[]
+
+  @@index([isActive, scope])
+}
+
+// Genel ayarlar (minimum marj, minimum kâr, kargo ücretleri vb.).
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────── Sepet ──
+
+enum CartStatus {
+  ACTIVE
+  CONVERTED
+  ABANDONED
+}
+
+model Cart {
+  id         String     @id @default(cuid())
+  userId     String?
+  // Misafir sepeti için cookie token'ının hash'i.
+  guestToken String?    @unique
+  status     CartStatus @default(ACTIVE)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@index([userId, status])
+}
+
+// Fiyat burada tutulmaz: her gösterimde ve checkout'ta sunucuda yeniden hesaplanır.
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  variantId String
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cart    Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, variantId])
+}
+
+// ──────────────────────────────────────────────────────────── Sipariş ──
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  PARTIALLY_SHIPPED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  number          Int         @unique @default(autoincrement())
+  userId          String
+  status          OrderStatus @default(PENDING_PAYMENT)
+  email           String
+  // Adresler sipariş anındaki haliyle kopyalanır.
+  shippingAddress Json
+  billingAddress  Json
+  shippingMethod  String
+  subtotal        Int
+  shippingTotal   Int         @default(0)
+  discountTotal   Int         @default(0)
+  taxTotal        Int         @default(0)
+  grandTotal      Int
+  // Yalnızca admin: tahmini maliyet ve kâr.
+  costTotal       Int         @default(0)
+  currency        String      @default("TRY")
+  // Checkout'un iki kez gönderilmesine karşı.
+  idempotencyKey  String      @unique
+  customerNote    String?
+  placedAt        DateTime    @default(now())
+  paidAt          DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items          OrderItem[]
+  supplierOrders SupplierOrder[]
+  payments       Payment[]
+  returns        Return[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id                String  @id @default(cuid())
+  orderId           String
+  variantId         String?
+  supplierOrderId   String?
+  supplierProductId String?
+  productName       String
+  variantName       String
+  sku               String
+  quantity          Int
+  unitPrice         Int
+  unitCost          Int
+  lineTotal         Int
+  taxRateBps        Int     @default(2000)
+  // Checkout'ta ayrılan stok bu satır için serbest bırakıldı mı (tedarikçiye iletim veya iptal).
+  reservationReleased Boolean @default(false)
+
+  order           Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant         ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  supplierOrder   SupplierOrder?   @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
+  supplierProduct SupplierProduct? @relation(fields: [supplierProductId], references: [id], onDelete: SetNull)
+  returnItems     ReturnItem[]
+
+  @@index([orderId])
+  @@index([supplierOrderId])
+}
+
+enum SupplierOrderStatus {
+  PENDING
+  AWAITING_MANUAL
+  SUBMITTING
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+enum DispatchMode {
+  AUTO
+  MANUAL
+}
+
+// Bir müşteri siparişi, her tedarikçi için ayrı bir alt siparişe bölünür.
+model SupplierOrder {
+  id              String              @id @default(cuid())
+  orderId         String
+  supplierId      String
+  status          SupplierOrderStatus @default(PENDING)
+  dispatchMode    DispatchMode        @default(MANUAL)
+  externalOrderId String?
+  costTotal       Int                 @default(0)
+  attemptCount    Int                 @default(0)
+  lastError       String?
+  submittedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier  Supplier    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  items     OrderItem[]
+  shipments Shipment[]
+  returns   Return[]
+
+  @@unique([orderId, supplierId])
+  @@index([status])
+  @@index([supplierId, status])
+}
+
+// ───────────────────────────────────────────────────────────── Ödeme ──
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  orderId           String
+  provider          String
+  providerPaymentId String?
+  status            PaymentStatus @default(PENDING)
+  amount            Int
+  currency          String        @default("TRY")
+  idempotencyKey    String        @unique
+  failureReason     String?
+  rawResponse       Json?
+  capturedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  refunds Refund[]
+
+  @@unique([provider, providerPaymentId])
+  @@index([orderId])
+  @@index([status])
+}
+
+// ────────────────────────────────────────────────────────────── Kargo ──
+
+enum ShipmentStatus {
+  LABEL_CREATED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RETURNED
+  EXCEPTION
+}
+
+model Shipment {
+  id              String         @id @default(cuid())
+  supplierOrderId String
+  carrier         String
+  trackingNumber  String
+  trackingUrl     String?
+  status          ShipmentStatus @default(LABEL_CREATED)
+  events          Json           @default("[]")
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  supplierOrder SupplierOrder @relation(fields: [supplierOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([carrier, trackingNumber])
+  @@index([supplierOrderId])
+}
+
+// ─────────────────────────────────────────────────────── İade / Refund ──
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  RECEIVED
+  REFUNDED
+  CANCELLED
+}
+
+model Return {
+  id              String       @id @default(cuid())
+  orderId         String
+  userId          String
+  // İadenin hangi tedarikçiye ait olduğu buradan bilinir.
+  supplierOrderId String?
+  status          ReturnStatus @default(REQUESTED)
+  reason          String
+  customerNote    String?
+  adminNote       String?
+  requestedAt     DateTime     @default(now())
+  resolvedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  supplierOrder SupplierOrder? @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
+  items         ReturnItem[]
+  refunds       Refund[]
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model ReturnItem {
+  id          String @id @default(cuid())
+  returnId    String
+  orderItemId String
+  quantity    Int
+
+  return    Return    @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+
+  @@unique([returnId, orderItemId])
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+model Refund {
+  id               String       @id @default(cuid())
+  paymentId        String
+  returnId         String?
+  amount           Int
+  status           RefundStatus @default(PENDING)
+  reason           String?
+  providerRefundId String?
+  idempotencyKey   String       @unique
+  failureReason    String?
+  processedAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  return  Return? @relation(fields: [returnId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
+}
+
+// ─────────────────────────────────────────────────── Webhook / Sync / Log ──
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+// Gelen webhook'lar. (provider, externalEventId) tekildir: aynı olay iki kez işlenmez.
+model WebhookEvent {
+  id              String        @id @default(cuid())
+  provider        String
+  externalEventId String
+  eventType       String
+  payload         Json
+  signatureValid  Boolean
+  status          WebhookStatus @default(RECEIVED)
+  attempts        Int           @default(0)
+  error           String?
+  receivedAt      DateTime      @default(now())
+  processedAt     DateTime?
+
+  @@unique([provider, externalEventId])
+  @@index([status, receivedAt])
+}
+
+enum SyncJobType {
+  STOCK_PRICE
+  CATALOG
+  ORDER_STATUS
+  TRACKING
+  MANUAL_IMPORT
+}
+
+enum SyncJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  CANCELLED
+}
+
+enum SyncTrigger {
+  SCHEDULED
+  MANUAL
+  RETRY
+}
+
+model SyncJob {
+  id           String        @id @default(cuid())
+  supplierId   String
+  type         SyncJobType
+  status       SyncJobStatus @default(QUEUED)
+  trigger      SyncTrigger   @default(SCHEDULED)
+  // { fetched, created, updated, unchanged, removed, failed }
+  stats        Json          @default("{}")
+  errorMessage String?
+  errorDetails Json?
+  attempt      Int           @default(1)
+  retryOfId    String?
+  queuedAt     DateTime      @default(now())
+  startedAt    DateTime?
+  finishedAt   DateTime?
+
+  supplier Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  retryOf  SyncJob?  @relation("SyncRetry", fields: [retryOfId], references: [id], onDelete: SetNull)
+  retries  SyncJob[] @relation("SyncRetry")
+
+  @@index([supplierId, queuedAt])
+  @@index([status, queuedAt])
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  SUPPLIER
+  WEBHOOK
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  actorType  ActorType
+  actorId    String?
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@index([createdAt])
+}
