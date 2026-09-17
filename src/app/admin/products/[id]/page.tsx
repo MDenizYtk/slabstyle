@@ -107,7 +107,7 @@ export default async function AdminProductPage(props: PageProps<"/admin/products
           <input type="hidden" name="productId" value={product.id} />
           <input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple required className="input max-w-md" aria-label="Fotoğraf seç" />
           <button className="btn-secondary">Fotoğraf yükle</button>
-          <span className="text-xs text-subtle">JPG/PNG/WEBP/AVIF, her biri en fazla 5 MB</span>
+          <span className="text-xs text-subtle">JPG/PNG/WEBP/AVIF · her biri en fazla 15 MB · otomatik küçültülür</span>
         </form>
       </section>
 

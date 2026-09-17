@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { detectImage } from "@/server/storage";
+import sharp from "sharp";
+import { detectImage, MAX_EDGE, optimizeImage } from "@/server/storage";
 
 const bytes = (...parts: (number[] | string)[]) =>
   new Uint8Array(parts.flatMap((p) => (typeof p === "string" ? [...p].map((c) => c.charCodeAt(0)) : p)));
@@ -15,5 +16,32 @@ describe("fotoğraf türü tespiti (sihirli baytlar)", () => {
     expect(detectImage(bytes("<html><script>"))).toBeNull();
     expect(detectImage(bytes("<svg xmlns="))).toBeNull();
     expect(detectImage(bytes("MZ", [0x90, 0]))).toBeNull();
+  });
+});
+
+describe("fotoğraf küçültme", () => {
+  // Telefon fotoğrafı benzeri büyük bir JPEG üret (4000x3000).
+  const bigJpeg = () =>
+    sharp({ create: { width: 4000, height: 3000, channels: 3, background: { r: 200, g: 80, b: 20 } } })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+
+  it("uzun kenarı sınırlar, WebP'ye çevirir ve boyutu küçültür", async () => {
+    const input = await bigJpeg();
+    const out = await optimizeImage(new Uint8Array(input));
+    expect(out.width).toBe(MAX_EDGE);
+    expect(out.height).toBe(1200);
+    expect(detectImage(new Uint8Array(out.data))?.ext).toBe("webp");
+    expect(out.data.byteLength).toBeLessThan(input.byteLength / 2);
+  });
+
+  it("küçük fotoğrafı büyütmez", async () => {
+    const small = await sharp({ create: { width: 300, height: 200, channels: 3, background: "#222" } }).png().toBuffer();
+    const out = await optimizeImage(new Uint8Array(small));
+    expect([out.width, out.height]).toEqual([300, 200]);
+  });
+
+  it("bozuk dosya hata verir", async () => {
+    await expect(optimizeImage(new Uint8Array([1, 2, 3, 4]))).rejects.toThrow();
   });
 });

@@ -1,19 +1,29 @@
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import sharp from "sharp";
 import { randomToken } from "./security/crypto";
 
 /**
  * Dosya depolama (ürün fotoğrafları). Şimdilik yerel disk; üretimde birden fazla
- * sunucu olacaksa S3 uyumlu bir depoya taşınır — yalnızca bu dosya değişir.
+ * sunucu olacaksa S3/R2 uyumlu bir depoya taşınır — yalnızca bu dosya değişir.
  * Dosyalar public/ dışında tutulur ve /media/... route'u üzerinden sunulur.
+ *
+ * Yüklenen her fotoğraf otomatik olarak küçültülüp WebP'ye çevrilir: telefonla
+ * çekilmiş 5 MB'lık bir kare yaklaşık 200 KB'a iner. 1000 ürünlük katalogda
+ * bu, 15 GB ile 1 GB arasındaki farktır.
  */
 
 // Yol çalışma zamanında belirlenir; derleyicinin (Turbopack) tüm projeyi izlemesi engellenir.
 const ROOT = process.env.UPLOAD_DIR
   ? path.resolve(/* turbopackIgnore: true */ process.env.UPLOAD_DIR)
   : path.join(/* turbopackIgnore: true */ process.cwd(), "storage", "uploads");
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-export const MAX_IMAGES_PER_UPLOAD = 10;
+
+/** Yüklenebilecek ham dosya boyutu (küçültmeden önce). */
+export const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+export const MAX_IMAGES_PER_UPLOAD = 40;
+/** Uzun kenar sınırı ve WebP kalitesi. */
+export const MAX_EDGE = 1600;
+const WEBP_QUALITY = 80;
 
 type ImageKind = { mime: string; ext: "jpg" | "png" | "webp" | "avif" };
 
@@ -31,18 +41,37 @@ export const MIME_BY_EXT: Record<string, string> = { jpg: "image/jpeg", png: "im
 
 export class UploadError extends Error {}
 
+/**
+ * Fotoğrafı web için hazırlar: EXIF dönüşünü uygular, uzun kenarı MAX_EDGE'e
+ * indirir (büyütmez) ve WebP'ye çevirir.
+ */
+export async function optimizeImage(input: Uint8Array): Promise<{ data: Buffer; width: number; height: number }> {
+  const pipeline = sharp(Buffer.from(input), { failOn: "none" })
+    .rotate()
+    .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: WEBP_QUALITY });
+  const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
+  return { data, width: info.width, height: info.height };
+}
+
 export async function saveImage(file: File, folder: string): Promise<string> {
   if (file.size === 0) throw new UploadError("Boş dosya");
-  if (file.size > MAX_IMAGE_BYTES) throw new UploadError(`"${file.name}" 5 MB'tan büyük`);
+  if (file.size > MAX_IMAGE_BYTES) throw new UploadError(`"${file.name}" 15 MB'tan büyük`);
   const buf = new Uint8Array(await file.arrayBuffer());
-  const kind = detectImage(buf);
-  if (!kind) throw new UploadError(`"${file.name}" desteklenmeyen biçim (JPG, PNG, WEBP, AVIF)`);
+  if (!detectImage(buf)) throw new UploadError(`"${file.name}" desteklenmeyen biçim (JPG, PNG, WEBP, AVIF)`);
   if (!/^[a-z0-9/-]+$/.test(folder)) throw new UploadError("Geçersiz klasör");
 
-  const key = `${folder}/${randomToken(12)}.${kind.ext}`;
+  let optimized;
+  try {
+    optimized = await optimizeImage(buf);
+  } catch {
+    throw new UploadError(`"${file.name}" okunamadı; dosya bozuk olabilir`);
+  }
+
+  const key = `${folder}/${randomToken(12)}.webp`;
   const target = path.join(/* turbopackIgnore: true */ ROOT, key);
   await mkdir(path.dirname(target), { recursive: true });
-  await writeFile(/* turbopackIgnore: true */ target, buf);
+  await writeFile(/* turbopackIgnore: true */ target, optimized.data);
   return `/media/${key}`;
 }
 

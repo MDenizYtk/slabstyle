@@ -29,7 +29,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
-  serverExternalPackages: ["@node-rs/argon2", "bullmq", "ioredis", "exceljs", "playwright", "playwright-core"],
+  serverExternalPackages: ["@node-rs/argon2", "bullmq", "ioredis", "exceljs", "playwright", "playwright-core", "sharp"],
   experimental: {
     // Admin manuel ürün içe aktarımı (CSV/Excel) için; dosya boyutu ayrıca action içinde sınırlanır.
     serverActions: { bodySizeLimit: "30mb" },

@@ -77,7 +77,10 @@ export function ProductCreateForm({
 
       <section className="card space-y-3 p-5">
         <h2 className="font-semibold">Fotoğraflar</h2>
-        <p className="text-xs text-subtle">JPG, PNG, WEBP veya AVIF · her biri en fazla 5 MB · en fazla 10 adet. İlk fotoğraf ana görsel olur.</p>
+        <p className="text-xs text-subtle">
+          JPG, PNG, WEBP veya AVIF · her biri en fazla 15 MB · toplam 25 MB. İlk fotoğraf ana görsel olur.
+          Yüklenen fotoğraflar site için otomatik küçültülür (uzun kenar 1600 piksel, WebP).
+        </p>
         <input
           name="images"
           type="file"

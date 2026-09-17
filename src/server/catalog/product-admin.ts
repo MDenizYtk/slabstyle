@@ -175,7 +175,7 @@ export async function addImagesAction(formData: FormData): Promise<void> {
   const back = `/admin/products/${productId}`;
   if (files.length === 0) redirectWithFlash(back, "Fotoğraf seçin", "bad");
   const count = await db.productImage.count({ where: { productId } });
-  if (count + files.length > 20) redirectWithFlash(back, "Bir üründe en fazla 20 fotoğraf olabilir", "bad");
+  if (count + files.length > 30) redirectWithFlash(back, "Bir üründe en fazla 30 fotoğraf olabilir", "bad");
   if (files.reduce((s, f) => s + f.size, 0) > MAX_TOTAL_UPLOAD) redirectWithFlash(back, "Toplam 25 MB sınırı aşıldı", "bad");
 
   const product = await db.product.findUniqueOrThrow({ where: { id: productId }, select: { name: true, slug: true } });
