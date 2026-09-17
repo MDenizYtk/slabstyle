@@ -5,6 +5,22 @@ Alan adı: `slabstylecar.com` (Cloudflare).
 Kurulum `docker-compose.coolify.yml` ile yapılır. Varsayılan **vitrin modunda** yalnızca
 uygulama + PostgreSQL çalışır (sunucuda ~350 MB imaj, ~250 MB bellek); Redis ve worker gerekmez.
 
+## Canlı durum (17 Eylül 2026)
+
+| | |
+| --- | --- |
+| Adres | https://slabstylecar.com (www → apex kalıcı yönlendirme) |
+| Yedek adres | https://slab.46-225-231-222.sslip.io |
+| Mod | `showcase` (vitrin) |
+| Sunucu | Hetzner `46.225.231.222`, `/opt/slabstyle` |
+| Sertifika | Let's Encrypt, Traefik otomatik yeniler (3 alan adını kapsar) |
+| DNS | Cloudflare A kaydı `@` ve `www` → sunucu IP'si (şimdilik DNS only / gri bulut) |
+| Yedek | Her gece 03:30, `/opt/slabstyle/yedekler` (veritabanı + fotoğraflar, 7 gün) |
+| Admin | `admin@slabstylecar.com` · şifre sunucuda `/opt/slabstyle/ADMIN-GIRIS.txt` |
+
+Sonraki adımlar: Admin → Ayarlar'dan WhatsApp/telefon girmek, ürünleri eklemek,
+ardından Cloudflare'de proxy'yi (turuncu bulut) + SSL "Full (strict)" açmak.
+
 ## Kurulu olan yöntem: sunucuda doğrudan Docker Compose
 
 Site şu an Hetzner'de (`46.225.231.222`) Coolify **kullanılmadan**, doğrudan Docker Compose ile çalışıyor.
