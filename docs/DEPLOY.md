@@ -5,6 +5,35 @@ Alan adı: `slabstylecar.com` (Cloudflare).
 Kurulum `docker-compose.coolify.yml` ile yapılır. Varsayılan **vitrin modunda** yalnızca
 uygulama + PostgreSQL çalışır (sunucuda ~350 MB imaj, ~250 MB bellek); Redis ve worker gerekmez.
 
+## Kurulu olan yöntem: sunucuda doğrudan Docker Compose
+
+Site şu an Hetzner'de (`46.225.231.222`) Coolify **kullanılmadan**, doğrudan Docker Compose ile çalışıyor.
+Coolify'ın Traefik proxy'si (80/443) trafiği karşılıyor; uygulama onun `coolify` ağına bağlanıyor.
+
+```
+/opt/slabstyle/
+  app/                 GitHub reposunun kopyası (git pull ile güncellenir)
+  docker-compose.yml   postgres + migrate + web (Traefik etiketleriyle)
+  .env                 gizli değerler (chmod 600)
+  ADMIN-GIRIS.txt      ilk admin e-postası ve şifresi (chmod 600)
+  guncelle.sh          tek komutla güncelleme
+```
+
+Güncelleme (koda `git push` yaptıktan sonra):
+
+```bash
+ssh root@46.225.231.222 /opt/slabstyle/guncelle.sh
+```
+
+Yedekleme:
+
+```bash
+docker exec slabstyle-db pg_dump -U slabstyle slabstyle | gzip > /root/slabstyle-$(date +%F).sql.gz
+docker run --rm -v slabstyle_slab-storage:/s -v /root:/b alpine tar czf /b/slabstyle-fotograflar.tar.gz -C /s .
+```
+
+Aşağıdaki Coolify adımları, ileride panelden yönetmek istersen geçerlidir.
+
 ## 1. Kodu GitHub'a gönder
 
 ```bash
