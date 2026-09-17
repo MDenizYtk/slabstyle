@@ -21,9 +21,15 @@ const ROOT = process.env.UPLOAD_DIR
 /** Yüklenebilecek ham dosya boyutu (küçültmeden önce). */
 export const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 export const MAX_IMAGES_PER_UPLOAD = 40;
-/** Uzun kenar sınırı ve WebP kalitesi. */
-export const MAX_EDGE = 1600;
-const WEBP_QUALITY = 80;
+/**
+ * Uzun kenar sınırı ve WebP kalitesi. Sunucu diskini/bant genişliğini kısmak için
+ * IMAGE_MAX_EDGE ve IMAGE_QUALITY ile değiştirilebilir.
+ *   1600 / 80 → ~200 KB   (en net)
+ *   1400 / 75 → ~130 KB   (varsayılan, gözle fark edilmez)
+ *   1000 / 70 → ~60 KB    (çok tasarruflu; büyük ekranda yumuşak görünebilir)
+ */
+export const MAX_EDGE = Math.min(4000, Math.max(600, Number(process.env.IMAGE_MAX_EDGE) || 1400));
+const WEBP_QUALITY = Math.min(95, Math.max(40, Number(process.env.IMAGE_QUALITY) || 75));
 
 type ImageKind = { mime: string; ext: "jpg" | "png" | "webp" | "avif" };
 

@@ -30,7 +30,7 @@ describe("fotoğraf küçültme", () => {
     const input = await bigJpeg();
     const out = await optimizeImage(new Uint8Array(input));
     expect(out.width).toBe(MAX_EDGE);
-    expect(out.height).toBe(1200);
+    expect(out.height).toBe(Math.round((MAX_EDGE * 3) / 4));
     expect(detectImage(new Uint8Array(out.data))?.ext).toBe("webp");
     expect(out.data.byteLength).toBeLessThan(input.byteLength / 2);
   });
