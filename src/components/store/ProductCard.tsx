@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isShop } from "@/config/mode";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import type { PublicProductCard } from "@/server/catalog/dto";
@@ -50,7 +51,7 @@ export function ProductCard({ product }: { product: PublicProductCard }) {
               {product.price != null ? formatMoney(product.price) : "—"}
             </span>
           </div>
-          <StockBadge level={product.stockLevel} label={product.stockLabel} />
+          {isShop && <StockBadge level={product.stockLevel} label={product.stockLabel} />}
         </div>
       </div>
     </Link>

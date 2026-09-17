@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AddToCart } from "@/components/store/AddToCart";
+import { ContactCTA } from "@/components/store/ContactCTA";
+import { isShop } from "@/config/mode";
+import { formatMoney } from "@/lib/money";
+import { db } from "@/server/db";
+import { DEFAULT_CONTACT, getContactSettings } from "@/server/settings";
 import { ProductGrid } from "@/components/store/ProductCard";
 import { ProductImage } from "@/components/store/ProductImage";
 import { getProductBySlug, getRelatedProducts } from "@/server/catalog/queries";
@@ -20,8 +25,9 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
   const { slug } = await props.params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
-  const related = await getRelatedProducts(slug);
+  const [related, contact] = await Promise.all([getRelatedProducts(slug), isShop ? Promise.resolve(DEFAULT_CONTACT) : getContactSettings(db)]);
   const [mainImage, ...otherImages] = product.images;
+  const price = product.variants.find((v) => v.price != null)?.price ?? null;
 
   return (
     <div className="container-x py-10">
@@ -60,14 +66,29 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
           <h1 className="slab mt-2 text-3xl sm:text-4xl">{product.name}</h1>
           {product.shortDesc && <p className="mt-4 text-muted">{product.shortDesc}</p>}
 
-          <div className="card mt-8 p-6">
-            <AddToCart variants={product.variants} />
+          <div className="card mt-8 space-y-4 p-6">
+            {isShop ? (
+              <AddToCart variants={product.variants} />
+            ) : (
+              <>
+                {price != null && (
+                  <div className="flex items-end gap-3">
+                    <span className="text-3xl font-bold">{formatMoney(price)}</span>
+                    <span className="pb-1 text-xs text-subtle">KDV dahil</span>
+                  </div>
+                )}
+                {product.variants.length > 1 && (
+                  <p className="text-sm text-muted">Seçenekler: {product.variants.map((v) => v.name).join(" · ")}</p>
+                )}
+                <ContactCTA contact={contact} productName={product.name} />
+              </>
+            )}
           </div>
 
           <ul className="mt-6 grid grid-cols-3 gap-3 text-center text-xs text-muted">
-            <li className="card p-3">Hızlı kargo</li>
-            <li className="card p-3">14 gün iade</li>
-            <li className="card p-3">Güvenli ödeme</li>
+            <li className="card p-3">Orijinal ürün</li>
+            <li className="card p-3">Hızlı teslimat</li>
+            <li className="card p-3">Uzman desteği</li>
           </ul>
         </div>
       </div>

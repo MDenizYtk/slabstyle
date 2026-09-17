@@ -1,4 +1,4 @@
-import { readyRedis } from "./redis";
+import { isRedisConfigured, readyRedis } from "./redis";
 import { logger } from "./logger";
 
 export type RateLimitResult = { allowed: boolean; remaining: number; retryAfterSec: number };
@@ -23,6 +23,8 @@ function memoryHit(key: string, limit: number, windowSec: number): RateLimitResu
  */
 export async function rateLimit(key: string, limit: number, windowSec: number): Promise<RateLimitResult> {
   const redisKey = `rl:${key}`;
+  // Redis yoksa (vitrin modu / tek sunucu) bellek içi sayaç kullanılır.
+  if (!isRedisConfigured()) return memoryHit(redisKey, limit, windowSec);
   try {
     const redis = await readyRedis();
     const results = await redis.multi().incr(redisKey).expire(redisKey, windowSec, "NX").ttl(redisKey).exec();

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isShop } from "@/config/mode";
 
 const SESSION_COOKIE = "ss_session";
 const PROTECTED = ["/account", "/admin", "/checkout"];
@@ -9,7 +10,9 @@ const PROTECTED = ["/account", "/admin", "/checkout"];
  */
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const needsAuth = PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  // Vitrin modunda sepet/ödeme/hesap kapalıdır: giriş istemek yerine sayfa 404 döner.
+  const active = isShop ? PROTECTED : ["/admin"];
+  const needsAuth = active.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   if (needsAuth && !request.cookies.has(SESSION_COOKIE)) {
     const url = request.nextUrl.clone();

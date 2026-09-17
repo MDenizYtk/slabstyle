@@ -24,7 +24,7 @@ const shippingSettingsSchema = z.object({
   methods: z.object({ standard: methodSchema, express: methodSchema }),
 });
 
-export const SETTING_KEYS = { pricing: "pricing", shipping: "shipping", bankTransfer: "bankTransfer" } as const;
+export const SETTING_KEYS = { pricing: "pricing", shipping: "shipping", bankTransfer: "bankTransfer", contact: "contact" } as const;
 
 /** Havale / EFT ile ödeme bilgileri (admin → Ayarlar). */
 export const bankTransferSchema = z.object({
@@ -61,6 +61,23 @@ export function getPricingSettings(db: DbClient): Promise<PricingSettings> {
 
 export function getShippingSettings(db: DbClient): Promise<ShippingSettings> {
   return readSetting(db, SETTING_KEYS.shipping, shippingSettingsSchema, DEFAULT_SHIPPING_SETTINGS);
+}
+
+/** Vitrin modunda müşteri buradan iletişime geçer. */
+export const contactSchema = z.object({
+  whatsapp: z.string().max(20),
+  phone: z.string().max(20),
+  email: z.string().max(120),
+  address: z.string().max(300),
+  note: z.string().max(300),
+});
+
+export type ContactSettings = z.infer<typeof contactSchema>;
+
+export const DEFAULT_CONTACT: ContactSettings = { whatsapp: "", phone: "", email: "", address: "", note: "" };
+
+export function getContactSettings(db: DbClient): Promise<ContactSettings> {
+  return readSetting(db, SETTING_KEYS.contact, contactSchema, DEFAULT_CONTACT);
 }
 
 export function getBankTransferSettings(db: DbClient): Promise<BankTransferSettings> {

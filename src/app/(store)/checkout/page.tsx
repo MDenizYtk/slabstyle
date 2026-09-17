@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { CheckoutForm } from "@/components/store/CheckoutForm";
+import { isShop } from "@/config/mode";
 import { requireUser } from "@/server/auth/dal";
 import { getCartView, loadCartView } from "@/server/cart/service";
 import { db } from "@/server/db";
@@ -12,6 +13,7 @@ import { getAvailablePaymentMethods } from "@/server/payments/service";
 export const metadata: Metadata = { title: "Ödeme", robots: { index: false } };
 
 export default async function CheckoutPage() {
+  if (!isShop) notFound(); // vitrin modunda ödeme kapalı
   const user = await requireUser("/checkout");
   const cart = await getCartView("standard");
   if (cart.lines.length === 0 || !cart.cartId) redirect("/cart");

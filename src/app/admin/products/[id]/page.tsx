@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DeleteProductButton } from "@/components/admin/DeleteProductButton";
 import { Flash, PageHeader } from "@/components/admin/ui";
+import { isShop } from "@/config/mode";
 import { ProductImage } from "@/components/store/ProductImage";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatMoney } from "@/lib/money";
@@ -191,7 +192,9 @@ export default async function AdminProductPage(props: PageProps<"/admin/products
                     Maliyet {v.price?.costAmount != null ? formatMoney(v.price.costAmount) : "—"} · Kâr {v.price?.costAmount != null ? formatMoney(v.price.amount - v.price.costAmount) : "—"}
                     {v.price?.manualAmount != null ? " · Elle fiyat" : ` · Kural: ${v.price?.pricingRule?.name ?? "varsayılan"}`}
                   </p>
-                  <p className="text-xs text-muted">Satılabilir {v.inventory?.availableQty ?? 0} · Rezerve {v.inventory?.reservedQty ?? 0} · Tedarikçi toplamı {v.inventory?.supplierQty ?? 0}</p>
+                  {isShop && (
+                    <p className="text-xs text-muted">Satılabilir {v.inventory?.availableQty ?? 0} · Rezerve {v.inventory?.reservedQty ?? 0} · Tedarikçi toplamı {v.inventory?.supplierQty ?? 0}</p>
+                  )}
                 </div>
               </div>
 
@@ -205,16 +208,18 @@ export default async function AdminProductPage(props: PageProps<"/admin/products
                     <button className="btn-secondary text-xs">Fiyatı kaydet</button>
                   </form>
                 )}
-                <form action={setOwnStockAction} className="flex flex-wrap items-end gap-2">
-                  <input type="hidden" name="variantId" value={v.id} />
-                  <input type="hidden" name="productId" value={product.id} />
-                  <div><label className="label" htmlFor={`oc-${v.id}`}>Kendi stoğum · maliyet (TL)</label><input id={`oc-${v.id}`} name="cost" defaultValue={tl(own?.costPrice)} className="input w-36" inputMode="decimal" /></div>
-                  <div><label className="label" htmlFor={`os-${v.id}`}>Adet</label><input id={`os-${v.id}`} name="stock" type="number" min={0} defaultValue={own?.stock ?? ""} className="input w-24" /></div>
-                  <button className="btn-secondary text-xs">Stoğu kaydet</button>
-                </form>
+                {isShop && (
+                  <form action={setOwnStockAction} className="flex flex-wrap items-end gap-2">
+                    <input type="hidden" name="variantId" value={v.id} />
+                    <input type="hidden" name="productId" value={product.id} />
+                    <div><label className="label" htmlFor={`oc-${v.id}`}>Kendi stoğum · maliyet (TL)</label><input id={`oc-${v.id}`} name="cost" defaultValue={tl(own?.costPrice)} className="input w-36" inputMode="decimal" /></div>
+                    <div><label className="label" htmlFor={`os-${v.id}`}>Adet</label><input id={`os-${v.id}`} name="stock" type="number" min={0} defaultValue={own?.stock ?? ""} className="input w-24" /></div>
+                    <button className="btn-secondary text-xs">Stoğu kaydet</button>
+                  </form>
+                )}
               </div>
 
-              <div className="mt-3 overflow-x-auto">
+              <div className={`mt-3 overflow-x-auto ${isShop ? "" : "hidden"}`}>
                 <table className="table-x">
                   <thead><tr><th>Tedarikçi</th><th>Tedarikçi SKU</th><th className="text-right">Alış</th><th className="text-right">Stok</th><th>Durum</th><th>Eşleşme</th><th /></tr></thead>
                   <tbody>

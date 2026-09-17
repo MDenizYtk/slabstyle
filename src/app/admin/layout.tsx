@@ -1,6 +1,31 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { AdminNav, type AdminLink } from "@/components/admin/AdminNav";
+import { isShop } from "@/config/mode";
+
+/** Vitrin modunda yalnızca ürün, kategori ve ayarlar görünür. */
+const SHOWCASE_LINKS: AdminLink[] = [
+  { href: "/admin", label: "Özet" },
+  { href: "/admin/products", label: "Ürünler" },
+  { href: "/admin/categories", label: "Kategoriler" },
+  { href: "/admin/settings", label: "Ayarlar" },
+];
+
+const SHOP_LINKS: AdminLink[] = [
+  { href: "/admin", label: "Dashboard" },
+  { href: "/admin/products", label: "Ürünler" },
+  { href: "/admin/categories", label: "Kategoriler" },
+  { href: "/admin/matching", label: "Eşleştirme" },
+  { href: "/admin/pricing", label: "Fiyat kuralları" },
+  { href: "/admin/suppliers", label: "Tedarikçiler" },
+  { href: "/admin/orders", label: "Siparişler" },
+  { href: "/admin/returns", label: "İadeler" },
+  { href: "/admin/sync", label: "Senkronizasyon" },
+  { href: "/admin/webhooks", label: "Webhooklar" },
+  { href: "/admin/settings", label: "Ayarlar" },
+];
+
+const ADMIN_LINKS = isShop ? SHOP_LINKS : SHOWCASE_LINKS;
 import { LogoMark } from "@/components/store/Logo";
 import { logoutAction } from "@/server/auth/actions";
 import { requireStaff } from "@/server/auth/dal";
@@ -17,7 +42,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           <LogoMark className="h-7 w-7" />
           <span className="slab text-sm">SLAB Admin</span>
         </Link>
-        <AdminNav />
+        <AdminNav links={ADMIN_LINKS} />
         <div className="mt-8 hidden border-t border-line pt-4 text-xs text-muted lg:block">
           <p className="font-semibold text-fg">{user.name}</p>
           <p>{user.role}</p>

@@ -6,9 +6,15 @@ const globalForRedis = globalThis as unknown as { redis?: Redis };
  * Paylaşılan Redis bağlantısı. Redis erişilemezse çağıranlar hatayı yakalayıp
  * güvenli bir yedek davranışa geçmelidir (ör. bellek içi rate limit).
  */
+/** Vitrin modunda Redis gerekmez; REDIS_URL boşsa bağlantı hiç kurulmaz. */
+export const isRedisConfigured = () => Boolean(process.env.REDIS_URL);
+
+export class RedisNotConfiguredError extends Error {}
+
 export function getRedis(): Redis {
+  if (!isRedisConfigured()) throw new RedisNotConfiguredError("REDIS_URL tanımlı değil");
   if (!globalForRedis.redis) {
-    globalForRedis.redis = new Redis(process.env.REDIS_URL ?? "redis://127.0.0.1:6379", {
+    globalForRedis.redis = new Redis(process.env.REDIS_URL!, {
       lazyConnect: true,
       maxRetriesPerRequest: 1,
       enableOfflineQueue: false,

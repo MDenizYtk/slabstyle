@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/ui";
 import { ProductCreateForm } from "@/components/admin/ProductCreateForm";
+import { isShop } from "@/config/mode";
 import { requireStaff } from "@/server/auth/dal";
 import { db } from "@/server/db";
 
@@ -16,7 +17,7 @@ export default async function NewProductPage() {
     <>
       <Link href="/admin/products" className="text-sm text-muted hover:text-fg">← Ürünler</Link>
       <PageHeader title="Yeni ürün" description="Fotoğraf yükleyin, kategori seçin, ürün kodlarını ve fiyatları girin." actions={<Link href="/admin/categories" className="btn-ghost">Kategorileri yönet</Link>} />
-      <ProductCreateForm categories={categories.map((c) => ({ id: c.id, name: c.name, parent: c.parent?.name ?? null }))} brands={brands} />
+      <ProductCreateForm categories={categories.map((c) => ({ id: c.id, name: c.name, parent: c.parent?.name ?? null }))} brands={brands} showStock={isShop} />
     </>
   );
 }

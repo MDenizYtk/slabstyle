@@ -1,8 +1,16 @@
 # SLAB STYLE Car Care
 
-Birden fazla B2B tedarikçinin ürünlerini tek mağazada satan e-ticaret platformu.
-Müşteri tek bir mağaza görür; sipariş arka planda ilgili tedarikçilere bölünür ve iletilir.
-Tedarikçi adı ve alış fiyatı müşteriye hiçbir yerde gösterilmez.
+Oto bakım / detailing ürünleri için e-ticaret platformu. İki modda çalışır (`STORE_MODE`):
+
+- **`showcase` — vitrin (varsayılan):** Ziyaretçiler admin panelinden eklenen ürünleri ve fotoğrafları
+  görür, WhatsApp veya telefonla sipariş verir. Sepet, ödeme, stok takibi ve tedarikçi bağlantısı kapalıdır.
+  Sadece uygulama + PostgreSQL çalışır.
+- **`shop` — tam mağaza:** Sepet, ödeme (havale/EFT veya kart), sipariş yönetimi, stok rezervasyonu ve
+  birden fazla B2B tedarikçiden otomatik fiyat/stok senkronizasyonu açılır. Sipariş arka planda ilgili
+  tedarikçilere bölünür; tedarikçi adı ve alış fiyatı müşteriye hiçbir yerde gösterilmez.
+  Ek olarak Redis ve worker gerekir.
+
+Mod değişimi tek ortam değişkeni ile olur; kod her iki modda da aynıdır.
 
 ## Teknoloji
 

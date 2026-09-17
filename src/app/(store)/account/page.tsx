@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { isShop } from "@/config/mode";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ORDER_STATUS_LABEL } from "@/domain/orders/status";
 import { formatMoney } from "@/lib/money";
@@ -11,6 +13,7 @@ import { getUserOrders } from "@/server/orders/customer-queries";
 export const metadata: Metadata = { title: "Hesabım", robots: { index: false } };
 
 export default async function AccountPage() {
+  if (!isShop) notFound(); // vitrin modunda müşteri hesabı kapalı
   const user = await requireUser("/account");
   const [orders, addresses] = await Promise.all([
     getUserOrders(user.id),

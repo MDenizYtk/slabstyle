@@ -1,5 +1,6 @@
+import { STORE_MODE } from "@/config/mode";
 import { db } from "@/server/db";
-import { readyRedis } from "@/server/redis";
+import { isRedisConfigured, readyRedis } from "@/server/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +16,11 @@ export async function GET() {
   };
   const [database, redis] = await Promise.all([
     check(() => db.$queryRaw`SELECT 1`),
-    check(async () => (await readyRedis(1500)).ping()),
+    isRedisConfigured() ? check(async () => (await readyRedis(1500)).ping()) : Promise.resolve(null),
   ]);
-  const ok = database && redis;
-  return Response.json({ ok, database, redis, time: new Date().toISOString() }, { status: ok ? 200 : 503, headers: { "cache-control": "no-store" } });
+  const ok = database && redis !== false;
+  return Response.json(
+    { ok, mode: STORE_MODE, database, redis, time: new Date().toISOString() },
+    { status: ok ? 200 : 503, headers: { "cache-control": "no-store" } },
+  );
 }

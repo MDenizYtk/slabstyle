@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { isShop } from "@/config/mode";
 import { ProductImage } from "@/components/store/ProductImage";
 import { LINE_ISSUE_TEXT } from "@/domain/cart/totals";
 import { formatMoney } from "@/lib/money";
@@ -9,6 +11,7 @@ import { getCartView } from "@/server/cart/service";
 export const metadata: Metadata = { title: "Sepet", robots: { index: false } };
 
 export default async function CartPage() {
+  if (!isShop) notFound(); // vitrin modunda sepet kapalı
   const { lines, totals } = await getCartView();
 
   if (lines.length === 0) {

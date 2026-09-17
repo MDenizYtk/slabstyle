@@ -7,7 +7,16 @@ type Option = { id: string; name: string };
 
 type Row = { key: number };
 
-export function ProductCreateForm({ categories, brands }: { categories: (Option & { parent: string | null })[]; brands: Option[] }) {
+export function ProductCreateForm({
+  categories,
+  brands,
+  showStock,
+}: {
+  categories: (Option & { parent: string | null })[];
+  brands: Option[];
+  /** Vitrin modunda stok ve maliyet alanları gizlenir. */
+  showStock: boolean;
+}) {
   const [state, action, pending] = useActionState<ProductFormState, FormData>(createProductAction, {});
   const [rows, setRows] = useState<Row[]>([{ key: 1 }]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -94,12 +103,20 @@ export function ProductCreateForm({ categories, brands }: { categories: (Option 
           <button type="button" className="btn-secondary text-xs" onClick={() => setRows((r) => [...r, { key: Date.now() }])}>Varyant ekle</button>
         </div>
         <p className="text-xs text-subtle">
-          Ürün kodu boş bırakılırsa otomatik üretilir. Stok girerseniz ürün &quot;Kendi Stoğum&quot; olarak satışa açılır; tedarikçiden gelen ürünlerde stok boş kalır.
-          Satış fiyatı boşsa fiyat kurallarına göre maliyetten hesaplanır.
+          Ürün kodu boş bırakılırsa otomatik üretilir.
+          {showStock
+            ? " Stok girerseniz ürün \"Kendi Stoğum\" olarak satışa açılır. Satış fiyatı boşsa fiyat kurallarına göre maliyetten hesaplanır."
+            : " Fiyat boş bırakılırsa ürün sayfasında fiyat gösterilmez (\"fiyat için arayın\")."}
         </p>
         <div className="overflow-x-auto">
           <table className="table-x min-w-[900px]">
-            <thead><tr><th>Seçenek adı</th><th>Ürün kodu (SKU)</th><th>Barkod</th><th>Üretici kodu</th><th>Satış (TL)</th><th>Üstü çizili (TL)</th><th>Maliyet (TL)</th><th>Stok</th><th /></tr></thead>
+            <thead>
+              <tr>
+                <th>Seçenek adı</th><th>Ürün kodu (SKU)</th><th>Barkod</th><th>Üretici kodu</th><th>Satış (TL)</th><th>Üstü çizili (TL)</th>
+                {showStock && <><th>Maliyet (TL)</th><th>Stok</th></>}
+                <th />
+              </tr>
+            </thead>
             <tbody>
               {rows.map((row, i) => (
                 <tr key={row.key}>
@@ -109,8 +126,12 @@ export function ProductCreateForm({ categories, brands }: { categories: (Option 
                   <td><input name="variantMpn" className="input font-mono" aria-label="Üretici kodu" /></td>
                   <td><input name="variantPrice" inputMode="decimal" placeholder="499,90" className="input" aria-label="Satış fiyatı" /></td>
                   <td><input name="variantCompareAt" inputMode="decimal" className="input" aria-label="Üstü çizili fiyat" /></td>
-                  <td><input name="variantCost" inputMode="decimal" className="input" aria-label="Maliyet" /></td>
-                  <td><input name="variantStock" type="number" min={0} className="input w-20" aria-label="Stok" /></td>
+                  {showStock && (
+                    <>
+                      <td><input name="variantCost" inputMode="decimal" className="input" aria-label="Maliyet" /></td>
+                      <td><input name="variantStock" type="number" min={0} className="input w-20" aria-label="Stok" /></td>
+                    </>
+                  )}
                   <td>
                     {rows.length > 1 && (
                       <button type="button" className="btn-ghost text-xs" onClick={() => setRows((r) => r.filter((x) => x.key !== row.key))} aria-label="Satırı sil">Sil</button>

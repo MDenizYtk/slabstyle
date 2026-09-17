@@ -2,7 +2,8 @@
 
 Sunucu: Hetzner `46.225.231.222` (Coolify kurulu, Atlas ile aynı sunucu).
 Alan adı: `slabstylecar.com` (Cloudflare).
-Kurulum `docker-compose.coolify.yml` ile yapılır: web, worker, migrate, PostgreSQL, Redis.
+Kurulum `docker-compose.coolify.yml` ile yapılır. Varsayılan **vitrin modunda** yalnızca
+uygulama + PostgreSQL çalışır (sunucuda ~350 MB imaj, ~250 MB bellek); Redis ve worker gerekmez.
 
 ## 1. Kodu GitHub'a gönder
 
@@ -37,14 +38,16 @@ değiştirilmemeli** — tedarikçi şifreleri bu anahtarla şifrelenir, değiş
 | Değişken | Değer |
 | --- | --- |
 | `APP_URL` | `https://slabstylecar.com` |
+| `STORE_MODE` | `showcase` (vitrin). Tam mağazaya geçince `shop` |
 | `ENCRYPTION_KEY` | 2. adımdaki base64 değer |
-| `PAYMENT_WEBHOOK_SECRET` | 2. adımdaki hex değer |
 | `SEED_ADMIN_EMAIL` | admin giriş e-postan |
 | `SEED_ADMIN_PASSWORD` | en az 12 karakter, güçlü bir şifre (yalnızca ilk kurulumda kullanılır) |
 | `TRUST_CLOUDFLARE` | `1` |
-| `PAYMENT_PROVIDER` | `mock` (gerçek sağlayıcı bağlanana kadar) |
-| `ALLOW_MOCK_PAYMENTS` | `0` — **canlıda asla 1 yapma**, yoksa ödemesiz sipariş "ödendi" olur |
 | `SESSION_TTL_DAYS` | `30` |
+
+Vitrin modunda Redis, worker ve ödeme değişkenleri **gerekmez**. Tam mağazaya geçerken eklenecekler:
+`STORE_MODE=shop`, `REDIS_URL`, `PAYMENT_PROVIDER`, `PAYMENT_WEBHOOK_SECRET` (`openssl rand -hex 32`),
+`ALLOW_MOCK_PAYMENTS=0` ve compose dosyasındaki `redis` + `worker` servislerinin açılması.
 
 `SERVICE_PASSWORD_POSTGRES` Coolify tarafından otomatik üretilir; dokunma.
 
@@ -94,10 +97,9 @@ Site `https://` ile açıldıktan sonra:
 ## 9. İlk giriş ve temizlik
 
 1. `https://slabstylecar.com/login` → `SEED_ADMIN_EMAIL` + `SEED_ADMIN_PASSWORD`.
-2. Admin → **Ayarlar**: Havale/EFT'yi aç (hesap sahibi, banka, IBAN) ve kargo ücretlerini gir.
-   Kartla ödeme gerçek sağlayıcı bağlanana kadar kapalıdır; müşteriler havale ile sipariş verir.
-   Para hesaba gelince: Siparişler → sipariş → **Havale geldi, onayla**.
-3. Admin → **Kategoriler** ve **Fiyat kuralları** kontrol et, **Yeni ürün** ile ürün ekle.
+2. Admin → **Ayarlar**: WhatsApp numaranı, telefon ve e-postanı gir. Ziyaretçiler ürün sayfasındaki
+   butonla buradan sipariş verir (vitrin modu).
+3. Admin → **Kategoriler**'i düzenle, **Yeni ürün** ile ürünleri ve fotoğrafları ekle.
 4. Coolify'dan `SEED_ADMIN_PASSWORD` değişkenini sil (artık gerekmez; admin varken kullanılmaz).
 
 Canlı veritabanı boş başlar: MOCK tedarikçiler ve örnek ürünler **yoktur**.

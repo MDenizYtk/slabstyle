@@ -7,9 +7,30 @@ import { db } from "./db";
 import { audit } from "./audit";
 import { requireAdmin } from "./auth/dal";
 import { redirectWithFlash } from "./admin/flash";
-import { bankTransferSchema, getShippingSettings, SETTING_KEYS, shippingSettingsSchema } from "./settings";
+import { normalizeWhatsapp } from "@/components/store/ContactCTA";
+import { bankTransferSchema, contactSchema, getShippingSettings, SETTING_KEYS, shippingSettingsSchema } from "./settings";
 
 const BACK = "/admin/settings";
+
+export async function saveContactAction(formData: FormData): Promise<void> {
+  const user = await requireAdmin();
+  const value = {
+    whatsapp: String(formData.get("whatsapp") ?? "").trim(),
+    phone: String(formData.get("phone") ?? "").trim(),
+    email: String(formData.get("email") ?? "").trim(),
+    address: String(formData.get("address") ?? "").trim(),
+    note: String(formData.get("note") ?? "").trim(),
+  };
+  const parsed = contactSchema.safeParse(value);
+  if (!parsed.success) redirectWithFlash(BACK, "İletişim bilgileri çok uzun", "bad");
+  if (value.whatsapp && !normalizeWhatsapp(value.whatsapp)) redirectWithFlash(BACK, "WhatsApp numarası geçersiz (ör. 0555 111 22 33)", "bad");
+  if (value.email && !value.email.includes("@")) redirectWithFlash(BACK, "E-posta geçersiz", "bad");
+
+  await db.setting.upsert({ where: { key: SETTING_KEYS.contact }, create: { key: SETTING_KEYS.contact, value: parsed.data }, update: { value: parsed.data } });
+  await audit({ action: "settings.contact_updated", actorType: "USER", actorId: user.id, entityType: "Setting", entityId: SETTING_KEYS.contact });
+  revalidatePath("/", "layout");
+  redirectWithFlash(BACK, "İletişim bilgileri kaydedildi");
+}
 
 export async function saveBankTransferAction(formData: FormData): Promise<void> {
   const user = await requireAdmin();

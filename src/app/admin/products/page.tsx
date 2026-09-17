@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@/generated/prisma/client";
 import { DeleteProductButton } from "@/components/admin/DeleteProductButton";
 import { EmptyRow, Flash, PageHeader } from "@/components/admin/ui";
+import { isShop } from "@/config/mode";
 import { Pagination } from "@/components/store/Pagination";
 import { ProductImage } from "@/components/store/ProductImage";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -75,7 +76,7 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
         description={`${total} ürün · düzenlemek, fotoğraf eklemek veya silmek için ürüne tıklayın`}
         actions={
           <>
-            <Link href="/admin/matching" className="btn-secondary">Ürün eşleştirme</Link>
+            {isShop && <Link href="/admin/matching" className="btn-secondary">Ürün eşleştirme</Link>}
             <Link href="/admin/products/new" className="btn-primary">Yeni ürün</Link>
           </>
         }
@@ -100,12 +101,13 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
           <thead>
             <tr>
               <th className="w-16" />
-              <th>Ürün</th><th>Marka</th><th>Kategori</th><th>Varyant</th><th>Teklif</th>
-              <th className="text-right">Satış (min)</th><th className="text-right">Stok</th><th>Durum</th><th className="text-right">İşlem</th>
+              <th>Ürün</th><th>Marka</th><th>Kategori</th><th>Varyant</th>
+              {isShop && <><th>Teklif</th><th className="text-right">Stok</th></>}
+              <th className="text-right">Fiyat</th><th>Durum</th><th className="text-right">İşlem</th>
             </tr>
           </thead>
           <tbody>
-            {products.length === 0 && <EmptyRow colSpan={10} />}
+            {products.length === 0 && <EmptyRow colSpan={isShop ? 10 : 8} />}
             {products.map((p) => (
               <tr key={p.id}>
                 <td>
@@ -120,9 +122,13 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
                 <td className="text-muted">{p.brand?.name ?? "—"}</td>
                 <td className="text-muted">{p.category?.name ?? <span className="text-warn">Kategorisiz</span>}</td>
                 <td>{p._count.variants}</td>
-                <td>{p.variants.reduce((n, v) => n + v._count.supplierProducts, 0)}</td>
+                {isShop && (
+                  <>
+                    <td>{p.variants.reduce((n, v) => n + v._count.supplierProducts, 0)}</td>
+                    <td className={`text-right ${p.totalAvailable === 0 ? "text-bad" : ""}`}>{p.totalAvailable}</td>
+                  </>
+                )}
                 <td className="text-right whitespace-nowrap">{p.minPrice != null ? formatMoney(p.minPrice) : "—"}</td>
-                <td className={`text-right ${p.totalAvailable === 0 ? "text-bad" : ""}`}>{p.totalAvailable}</td>
                 <td><StatusBadge status={p.status} label={STATUS_LABEL[p.status]} /></td>
                 <td>
                   <div className="flex justify-end gap-2">

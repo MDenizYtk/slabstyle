@@ -1,6 +1,31 @@
 import "server-only";
 import { PAID_ORDER_STATUSES } from "@/domain/orders/status";
 import { db } from "../db";
+import { getContactSettings } from "../settings";
+
+/** Vitrin modu özeti: ürün ve fotoğraf odaklı. */
+export async function getShowcaseStats() {
+  const [activeProducts, draftProducts, withoutImage, categories, contact, recentProducts] = await Promise.all([
+    db.product.count({ where: { status: "ACTIVE" } }),
+    db.product.count({ where: { status: "DRAFT" } }),
+    db.product.count({ where: { status: { not: "ARCHIVED" }, images: { none: {} } } }),
+    db.category.count(),
+    getContactSettings(db),
+    db.product.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: { id: true, name: true, status: true, minPrice: true, category: { select: { name: true } }, images: { select: { url: true }, orderBy: { position: "asc" }, take: 1 } },
+    }),
+  ]);
+  return {
+    activeProducts,
+    draftProducts,
+    withoutImage,
+    categories,
+    hasContact: Boolean(contact.whatsapp || contact.phone || contact.email),
+    recentProducts,
+  };
+}
 
 export async function getDashboardStats() {
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);

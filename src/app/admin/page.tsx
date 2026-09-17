@@ -1,14 +1,70 @@
 import Link from "next/link";
 import { EmptyRow, PageHeader, StatCard } from "@/components/admin/ui";
+import { ProductImage } from "@/components/store/ProductImage";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { isShop } from "@/config/mode";
 import { ORDER_STATUS_LABEL, SYNC_STATUS_LABEL } from "@/domain/orders/status";
 import { formatMoney } from "@/lib/money";
-import { getDashboardStats } from "@/server/admin/dashboard";
+import { getDashboardStats, getShowcaseStats } from "@/server/admin/dashboard";
 import { requireStaff } from "@/server/auth/dal";
 
 export default async function AdminDashboard() {
   // Layout da kontrol eder ama sayfa layout ile paralel çalışır; yetki her sayfada ayrıca doğrulanır.
   await requireStaff();
+  return isShop ? <ShopDashboard /> : <ShowcaseDashboard />;
+}
+
+/** Vitrin modu: ürün ve fotoğraf odaklı sade özet. */
+async function ShowcaseDashboard() {
+  const s = await getShowcaseStats();
+  return (
+    <>
+      <PageHeader
+        title="Özet"
+        description="Vitrin modu: ziyaretçiler ürünleri ve fotoğrafları görür, WhatsApp ile iletişime geçer."
+        actions={<Link href="/admin/products/new" className="btn-primary">Yeni ürün</Link>}
+      />
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard label="Yayındaki ürün" value={s.activeProducts} href="/admin/products?status=ACTIVE" />
+        <StatCard label="Taslak ürün" value={s.draftProducts} hint="Yayına almayı unutma" tone={s.draftProducts ? "warn" : undefined} href="/admin/products?status=DRAFT" />
+        <StatCard label="Fotoğrafsız ürün" value={s.withoutImage} tone={s.withoutImage ? "warn" : "ok"} href="/admin/products" />
+        <StatCard label="Kategori" value={s.categories} href="/admin/categories" />
+      </div>
+
+      {!s.hasContact && (
+        <p className="card mt-6 border-warn/40 p-4 text-sm text-warn">
+          İletişim bilgisi girilmemiş: ziyaretçiler sipariş için sana ulaşamaz. <Link href="/admin/settings" className="underline">Ayarlar</Link> sayfasından WhatsApp numaranı ekle.
+        </p>
+      )}
+
+      <section className="card mt-8 overflow-hidden">
+        <h2 className="border-b border-line px-4 py-3 font-semibold">Son eklenen ürünler</h2>
+        <table className="table-x">
+          <tbody>
+            {s.recentProducts.length === 0 && <EmptyRow colSpan={4} text="Henüz ürün yok. 'Yeni ürün' ile başla." />}
+            {s.recentProducts.map((p) => (
+              <tr key={p.id}>
+                <td className="w-16">
+                  <Link href={`/admin/products/${p.id}`} className="relative block h-12 w-12 overflow-hidden rounded-md bg-panel-2">
+                    <ProductImage src={p.images[0]?.url ?? null} alt={p.name} sizes="48px" />
+                  </Link>
+                </td>
+                <td><Link href={`/admin/products/${p.id}`} className="font-semibold hover:text-accent">{p.name}</Link></td>
+                <td className="text-muted">{p.category?.name ?? "—"}</td>
+                <td className="text-right">{p.minPrice != null ? formatMoney(p.minPrice) : "Fiyat yok"}</td>
+                <td><StatusBadge status={p.status} label={p.status === "ACTIVE" ? "Yayında" : p.status === "DRAFT" ? "Taslak" : "Arşiv"} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </>
+  );
+}
+
+/** Tam mağaza modu: satış, sipariş ve tedarikçi özeti. */
+async function ShopDashboard() {
   const s = await getDashboardStats();
 
   return (

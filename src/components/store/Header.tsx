@@ -1,18 +1,19 @@
 import Link from "next/link";
+import { isShop } from "@/config/mode";
 import { getCurrentUser, isStaff } from "@/server/auth/dal";
 import { getCartCount } from "@/server/cart/service";
 import { getNavCategories } from "@/server/catalog/queries";
 import { Logo } from "./Logo";
 
 export async function Header() {
-  const [user, cartCount, categories] = await Promise.all([getCurrentUser(), getCartCount(), getNavCategories()]);
+  const [user, categories, cartCount] = await Promise.all([
+    getCurrentUser(),
+    getNavCategories(),
+    isShop ? getCartCount() : Promise.resolve(0),
+  ]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-ink/90 backdrop-blur">
-      <div className="border-b border-line/60 bg-panel text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
-        <p className="container-x py-1.5">750 TL üzeri standart kargo ücretsiz</p>
-      </div>
-
       <div className="container-x flex items-center gap-4 py-3">
         <Logo />
 
@@ -29,16 +30,16 @@ export async function Header() {
         </form>
 
         <nav className="ml-auto flex items-center gap-1 text-sm" aria-label="Hesap">
-          {user && isStaff(user) && (
-            <Link href="/admin" className="btn-ghost hidden sm:inline-flex">Admin</Link>
+          {user && isStaff(user) && <Link href="/admin" className="btn-ghost hidden sm:inline-flex">Admin</Link>}
+          {isShop && (
+            <>
+              <Link href={user ? "/account" : "/login"} className="btn-ghost">{user ? "Hesabım" : "Giriş"}</Link>
+              <Link href="/cart" className="btn-secondary" aria-label={`Sepet, ${cartCount} ürün`}>
+                Sepet
+                <span className="rounded bg-accent px-1.5 text-xs font-bold text-black">{cartCount}</span>
+              </Link>
+            </>
           )}
-          <Link href={user ? "/account" : "/login"} className="btn-ghost">
-            {user ? "Hesabım" : "Giriş"}
-          </Link>
-          <Link href="/cart" className="btn-secondary" aria-label={`Sepet, ${cartCount} ürün`}>
-            Sepet
-            <span className="rounded bg-accent px-1.5 text-xs font-bold text-black">{cartCount}</span>
-          </Link>
         </nav>
       </div>
 
